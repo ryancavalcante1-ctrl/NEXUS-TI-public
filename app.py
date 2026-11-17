@@ -1,5 +1,10 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_from_directory
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
+from io import BytesIO
+from urllib.parse import quote
+import psycopg2
+from psycopg2.extras import DictCursor
+import requests
+import mimetypes
 import secrets
 import os
 import hmac
@@ -12,22 +17,78 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "true").lower() == "true"
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por envio
 
-# No Render, configure DATABASE_PATH e UPLOAD_FOLDER no disco persistente.
-DATA_FOLDER = os.environ.get("DATA_FOLDER", app.root_path)
-DATABASE = os.environ.get("DATABASE_PATH", os.path.join(DATA_FOLDER, "nexus_ti.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_STORAGE_BUCKET = os.environ.get("SUPABASE_STORAGE_BUCKET", "nexus-anexos")
 
-# Anexos enviados pelos técnicos (armazenados fora da pasta static).
-UPLOAD_FOLDER = os.environ.get(
-    "UPLOAD_FOLDER", os.path.join(DATA_FOLDER, "uploads", "chamados")
-)
 EXTENSOES_PERMITIDAS = {
     "png", "jpg", "jpeg", "webp", "gif",
     "pdf", "doc", "docx", "xls", "xlsx", "txt", "csv"
 }
 TAMANHO_MAXIMO_ARQUIVO = 8 * 1024 * 1024  # 8 MB por arquivo
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB por envio
+
+
+class ConexaoPostgres:
+    """Adaptador pequeno para manter o padrão execute/fetch usado no projeto."""
+    def __init__(self, conexao):
+        self._conexao = conexao
+
+    def execute(self, sql, parametros=None):
+        cursor = self._conexao.cursor(cursor_factory=DictCursor)
+        # As consultas originais do Flask usavam placeholders SQLite (?)
+        cursor.execute(sql.replace("?", "%s"), parametros or ())
+        return cursor
+
+    def commit(self):
+        self._conexao.commit()
+
+    def rollback(self):
+        self._conexao.rollback()
+
+    def close(self):
+        self._conexao.close()
+
+
+def conectar_banco():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL não foi configurada no ambiente do servidor.")
+    conexao = psycopg2.connect(DATABASE_URL, sslmode="require", connect_timeout=15)
+    return ConexaoPostgres(conexao)
+
+
+def storage_headers(content_type=None):
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError("SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY precisam ser configuradas.")
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def enviar_storage(caminho_objeto, conteudo, content_type):
+    caminho = quote(caminho_objeto, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{caminho}"
+    headers = storage_headers(content_type)
+    headers["x-upsert"] = "false"
+    resposta = requests.post(url, headers=headers, data=conteudo, timeout=60)
+    if resposta.status_code not in (200, 201):
+        raise RuntimeError(f"Falha ao enviar anexo ao Supabase Storage: {resposta.status_code} {resposta.text[:300]}")
+
+
+def baixar_storage(caminho_objeto):
+    caminho = quote(caminho_objeto, safe="/")
+    url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_STORAGE_BUCKET}/{caminho}"
+    resposta = requests.get(url, headers=storage_headers(), timeout=60)
+    if resposta.status_code != 200:
+        raise RuntimeError(f"Falha ao baixar anexo do Supabase Storage: {resposta.status_code}")
+    return resposta.content
 
 
 def administrador_required(func):
@@ -91,118 +152,25 @@ def conectar_banco():
 # --------------------------------------------------
 
 def criar_banco():
+    """Confere se as tabelas foram criadas no Supabase antes de iniciar o app."""
+    if not DATABASE_URL:
+        # Permite importar o módulo localmente sem credenciais; as rotas exigirão a URL.
+        return
     conexao = conectar_banco()
-
-    conexao.execute("""
-        CREATE TABLE IF NOT EXISTS chamados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            solicitante TEXT NOT NULL,
-            titulo TEXT NOT NULL,
-            categoria TEXT NOT NULL,
-            prioridade TEXT NOT NULL,
-            descricao TEXT NOT NULL,
-            status TEXT DEFAULT 'Aberto',
-            data_abertura TEXT NOT NULL
-        )
-    """)
-
-    conexao.execute("""
-        CREATE TABLE IF NOT EXISTS tecnicos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            telefone TEXT,
-            especialidade TEXT NOT NULL,
-            status TEXT DEFAULT 'Ativo',
-            codigo_ativacao TEXT,
-            senha_hash TEXT,
-            ativado INTEGER DEFAULT 0
-        )
-    """)
-
-    # Atualiza bancos antigos sem apagar os dados existentes.
-    colunas_tecnicos = conexao.execute(
-        "PRAGMA table_info(tecnicos)"
-    ).fetchall()
-    nomes_colunas = [coluna["name"] for coluna in colunas_tecnicos]
-
-    novas_colunas = {
-        "codigo_ativacao": "TEXT",
-        "senha_hash": "TEXT",
-        "ativado": "INTEGER DEFAULT 0"
-    }
-
-    for coluna, tipo in novas_colunas.items():
-        if coluna not in nomes_colunas:
-            conexao.execute(
-                f"ALTER TABLE tecnicos ADD COLUMN {coluna} {tipo}"
-            )
-
-    colunas_chamados = conexao.execute(
-        "PRAGMA table_info(chamados)"
-    ).fetchall()
-
-    nomes_colunas_chamados = [coluna["name"] for coluna in colunas_chamados]
-    if "tecnico_id" not in nomes_colunas_chamados:
-        conexao.execute("""
-            ALTER TABLE chamados
-            ADD COLUMN tecnico_id INTEGER REFERENCES tecnicos(id)
-        """)
-
-    # Dados do encerramento técnico (migração segura de bancos existentes).
-    for coluna, tipo in {
-        "solucao": "TEXT",
-        "data_conclusao": "TEXT",
-        "concluido_por": "TEXT"
-    }.items():
-        if coluna not in nomes_colunas_chamados:
-            conexao.execute(f"ALTER TABLE chamados ADD COLUMN {coluna} {tipo}")
-
-    # Histórico de mudanças de status.
-    conexao.execute("""
-        CREATE TABLE IF NOT EXISTS historico_chamados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chamado_id INTEGER NOT NULL,
-            status_anterior TEXT,
-            status_novo TEXT NOT NULL,
-            observacao TEXT,
-            responsavel TEXT NOT NULL,
-            data_evento TEXT NOT NULL,
-            FOREIGN KEY (chamado_id) REFERENCES chamados(id)
-        )
-    """)
-
-    # Novo recurso: anotações/observações técnicas independentes do status.
-    conexao.execute("""
-        CREATE TABLE IF NOT EXISTS observacoes_chamados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chamado_id INTEGER NOT NULL,
-            tecnico_id INTEGER NOT NULL,
-            responsavel TEXT NOT NULL,
-            observacao TEXT NOT NULL,
-            data_evento TEXT NOT NULL,
-            FOREIGN KEY (chamado_id) REFERENCES chamados(id),
-            FOREIGN KEY (tecnico_id) REFERENCES tecnicos(id)
-        )
-    """)
-
-    # Arquivos anexados aos chamados.
-    conexao.execute("""
-        CREATE TABLE IF NOT EXISTS anexos_chamados (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chamado_id INTEGER NOT NULL,
-            tecnico_id INTEGER NOT NULL,
-            responsavel TEXT NOT NULL,
-            nome_original TEXT NOT NULL,
-            nome_arquivo TEXT NOT NULL,
-            data_evento TEXT NOT NULL,
-            FOREIGN KEY (chamado_id) REFERENCES chamados(id),
-            FOREIGN KEY (tecnico_id) REFERENCES tecnicos(id)
-        )
-    """)
-
-    conexao.commit()
-    conexao.close()
+    try:
+        tabelas = conexao.execute("""
+            SELECT
+                to_regclass('public.tecnicos') AS tecnicos,
+                to_regclass('public.chamados') AS chamados,
+                to_regclass('public.historico_chamados') AS historico,
+                to_regclass('public.observacoes_chamados') AS observacoes,
+                to_regclass('public.anexos_chamados') AS anexos
+        """).fetchone()
+        ausentes = [nome for nome in ("tecnicos", "chamados", "historico", "observacoes", "anexos") if not tabelas[nome]]
+        if ausentes:
+            raise RuntimeError("Tabelas ausentes no Supabase: " + ", ".join(ausentes))
+    finally:
+        conexao.close()
 
 
 def registrar_historico(conexao, chamado_id, status_anterior, status_novo,
@@ -323,19 +291,18 @@ def novo_chamado():
                 flash("Técnico não encontrado ou inativo.", "erro")
                 return redirect(url_for("novo_chamado"))
 
-            conexao.execute("""
+            novo_chamado = conexao.execute("""
                 INSERT INTO chamados
                 (solicitante, titulo, categoria, prioridade,
                  descricao, status, data_abertura, tecnico_id)
                 VALUES (?, ?, ?, ?, ?, 'Aberto', ?, ?)
+                RETURNING id
             """, (
                 solicitante, titulo, categoria, prioridade, descricao,
                 datetime.now().strftime("%d/%m/%Y %H:%M"), tecnico_id
-            ))
+            )).fetchone()
 
-            chamado_id_novo = conexao.execute(
-                "SELECT last_insert_rowid()"
-            ).fetchone()[0]
+            chamado_id_novo = novo_chamado["id"]
 
             registrar_historico(
                 conexao, chamado_id_novo, None, "Aberto", "Sistema",
@@ -450,7 +417,7 @@ def cadastrar_tecnico():
         """, (nome, email, telefone, especialidade, codigo))
         conexao.commit()
         flash(f"Técnico cadastrado! Código de ativação: {codigo}", "sucesso")
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError:
         flash("Este e-mail já está cadastrado.", "erro")
     finally:
         conexao.close()
@@ -740,7 +707,6 @@ def anexar_arquivo_chamado(chamado_id):
         flash("Selecione pelo menos um arquivo.", "erro")
         return redirect(url_for("detalhes_chamado", chamado_id=chamado_id))
 
-    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     salvos = 0
     erros = []
 
@@ -765,9 +731,10 @@ def anexar_arquivo_chamado(chamado_id):
                 erros.append(f"{nome_original}: excede o limite de 8 MB")
                 continue
 
-            nome_armazenado = f"{secrets.token_hex(16)}.{extensao}"
-            caminho = os.path.join(UPLOAD_FOLDER, nome_armazenado)
-            arquivo.save(caminho)
+            nome_armazenado = f"chamados/{chamado_id}/{secrets.token_hex(16)}.{extensao}"
+            conteudo = arquivo.read()
+            content_type = arquivo.mimetype or mimetypes.guess_type(nome_original)[0] or "application/octet-stream"
+            enviar_storage(nome_armazenado, conteudo, content_type)
 
             conexao.execute("""
                 INSERT INTO anexos_chamados
@@ -813,7 +780,7 @@ def baixar_anexo_chamado(anexo_id):
 
     conexao = conectar_banco()
     anexo = conexao.execute("""
-        SELECT a.nome_arquivo, a.nome_original
+        SELECT a.nome_arquivo, a.nome_original, a.chamado_id
         FROM anexos_chamados a
         INNER JOIN chamados c ON c.id = a.chamado_id
         WHERE a.id = ? AND c.tecnico_id = ?
@@ -824,11 +791,18 @@ def baixar_anexo_chamado(anexo_id):
         flash("Anexo não encontrado ou sem permissão de acesso.", "erro")
         return redirect(url_for("painel_tecnico"))
 
-    return send_from_directory(
-        UPLOAD_FOLDER,
-        anexo["nome_arquivo"],
+    try:
+        conteudo = baixar_storage(anexo["nome_arquivo"])
+    except Exception:
+        app.logger.exception("Erro ao recuperar anexo do Supabase Storage")
+        flash("Não foi possível baixar o anexo neste momento.", "erro")
+        return redirect(url_for("detalhes_chamado", chamado_id=anexo["chamado_id"]))
+
+    return send_file(
+        BytesIO(conteudo),
         as_attachment=True,
-        download_name=anexo["nome_original"]
+        download_name=anexo["nome_original"],
+        mimetype="application/octet-stream"
     )
 
 
@@ -932,6 +906,18 @@ def arquivo_muito_grande(_erro):
     if chamado_id:
         return redirect(url_for("detalhes_chamado", chamado_id=chamado_id))
     return redirect(url_for("painel_tecnico"))
+
+
+@app.route("/health")
+def health():
+    try:
+        conexao = conectar_banco()
+        conexao.execute("SELECT 1")
+        conexao.close()
+        return {"status": "ok"}, 200
+    except Exception:
+        app.logger.exception("Health check falhou")
+        return {"status": "unavailable"}, 503
 
 
 # --------------------------------------------------

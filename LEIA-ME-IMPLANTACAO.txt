@@ -1,0 +1,37 @@
+NEXUS TI — versão para Render + Supabase (plano gratuito)
+
+O QUE ESTA VERSÃO USA
+- Flask no Render.
+- PostgreSQL do Supabase para chamados, técnicos e histórico.
+- Supabase Storage para anexos (bucket privado nexus-anexos).
+- Login administrativo por variáveis de ambiente.
+
+ANTES DE PUBLICAR
+1. No Supabase, execute o arquivo supabase_storage_bucket.sql no SQL Editor.
+2. No Render, crie um Web Service ligado ao repositório GitHub NEXUS-TI-public.
+3. Build Command: pip install -r requirements.txt
+4. Start Command: gunicorn app:app --workers 1 --threads 4 --timeout 120
+5. Configure as variáveis de ambiente:
+   DATABASE_URL = URI do Session Pooler do Supabase (com senha real; não publicar)
+   SUPABASE_URL = URL do projeto Supabase
+   SUPABASE_SERVICE_ROLE_KEY = chave service_role/secret do Supabase (NUNCA colocar no GitHub)
+   SUPABASE_STORAGE_BUCKET = nexus-anexos
+   SECRET_KEY = uma chave aleatória longa
+   ADMIN_USERNAME = usuário escolhido para o administrador
+   ADMIN_PASSWORD = senha forte escolhida para o administrador
+   COOKIE_SECURE = true
+
+IMPORTANTE SOBRE SEGURANÇA
+- Nunca compartilhe DATABASE_URL, senha do banco ou SUPABASE_SERVICE_ROLE_KEY.
+- A chave service_role fica somente nas variáveis privadas do Render. Ela ignora RLS e não pode ir para o navegador nem para o GitHub.
+- As tabelas do banco já foram criadas no SQL Editor e estão com RLS ativado. O backend conecta com credencial de servidor.
+- O bucket deve ser privado; os downloads são entregues pelo Flask após conferir o técnico autenticado.
+
+LIMITAÇÕES DO PLANO GRATUITO
+- O Render Free pode suspender o serviço após inatividade e a primeira abertura pode demorar.
+- O Supabase Free tem limites de banco e armazenamento; monitore o uso no painel.
+- Não há disco persistente do Render nesta arquitetura: banco e anexos ficam no Supabase.
+
+PRIMEIRO ACESSO ADMINISTRATIVO
+- Abra /admin/login e entre com ADMIN_USERNAME e ADMIN_PASSWORD.
+- A página inicial / exige login administrativo.
