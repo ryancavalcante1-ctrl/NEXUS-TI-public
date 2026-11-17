@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS TI | Central de Suporte</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">N</div>
+            <div>
+                <h2>NEXUS <span>TI</span></h2>
+                <small>SUPORTE TÉCNICO</small>
+            </div>
+        </div>
+
+        <p class="menu-title">MENU PRINCIPAL</p>
+
+        <nav>
+    <a href="{{ url_for('inicio') }}" class="active">
+        ▦ &nbsp; Dashboard
+    </a>
+
+    <a href="#chamados">
+        ▤ &nbsp; Chamados
+    </a>
+
+    <a href="{{ url_for('equipe_tecnica') }}">
+        ♙ &nbsp; Equipe técnica
+    </a>
+
+    <a href="#relatorios">
+        ▥ &nbsp; Relatórios
+    </a>
+</nav>
+
+        <div class="sidebar-bottom">
+            <div class="user-avatar">AD</div>
+            <div>
+                <strong>Administrador</strong>
+                <small>Gestão de TI</small>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+
+        <header class="topbar">
+            <div>
+                <h3>Painel de controle</h3>
+                <p>Bem-vindo ao NEXUS TI.</p>
+            </div>
+            <div class="profile">AD</div><a href="{{ url_for('sair_administrador') }}" class="btn-cancelar">Sair</a>
+        </header>
+
+        <section class="welcome">
+            <div>
+                <span> CENTRAL DE ATENDIMENTO</span>
+                <h1>Olá, Administrador!</h1>
+                <p>Acompanhe as solicitações de suporte técnico.</p>
+            </div>
+            <div class="welcome-icon">⌘</div>
+        </section>
+
+<section class="stats">
+
+    <div class="stat-card">
+        <div class="stat-icon blue">▤</div>
+        <p>Total de chamados</p>
+        <h2>{{ total }}</h2>
+        <small>Chamados registrados</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon orange">◷</div>
+        <p>Abertos</p>
+        <h2>{{ abertos }}</h2>
+        <small>Aguardando atendimento</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon purple">⚙</div>
+        <p>Em andamento</p>
+        <h2>{{ andamento }}</h2>
+        <small>Em atendimento técnico</small>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon green">✓</div>
+        <p>Concluídos</p>
+        <h2>{{ concluidos }}</h2>
+        <small>Atendimentos finalizados</small>
+    </div>
+
+</section>
+<section class="tickets" id="chamados">
+
+    <div class="section-header">
+        <div>
+            <h2>Chamados recentes</h2>
+            <p>Acompanhe as últimas solicitações registradas.</p>
+        </div>
+
+        <a href="{{ url_for('novo_chamado') }}" class="btn-enviar">
+            + Novo chamado
+        </a>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+    <tr>
+        <th>ID</th>
+        <th>Solicitação</th>
+        <th>Solicitante</th>
+        <th>Técnico responsável</th>
+        <th>Prioridade</th>
+        <th>Status</th>
+        <th>Ação</th>
+    </tr>
+</thead>
+
+<tbody>
+    {% for chamado in chamados %}
+    <tr>
+        <td>#{{ chamado.id }}</td>
+
+        <td>{{ chamado.titulo }}</td>
+
+        <td>{{ chamado.solicitante }}</td>
+
+        <td>
+            {% if chamado.tecnico_nome %}
+                <strong>{{ chamado.tecnico_nome }}</strong>
+                <br>
+                <small>{{ chamado.tecnico_especialidade }}</small>
+            {% else %}
+                <span>Não atribuído</span>
+            {% endif %}
+        </td>
+
+        <td>
+            <span class="priority
+                {% if chamado.prioridade == 'Alta' %}high
+                {% elif chamado.prioridade == 'Média' %}medium
+                {% else %}low{% endif %}">
+                {{ chamado.prioridade }}
+            </span>
+        </td>
+
+        <td>
+            <span class="status
+                {% if chamado.status == 'Aberto' %}open
+                {% elif chamado.status == 'Em andamento' %}progress
+                {% else %}done{% endif %}">
+                {{ chamado.status }}
+            </span>
+        </td>
+
+        <td>
+            <form method="POST"
+                  action="{{ url_for('atualizar_status', chamado_id=chamado.id) }}"
+                  class="status-form">
+
+                <select name="status">
+                    <option value="Aberto"
+                        {% if chamado.status == 'Aberto' %}selected{% endif %}>
+                        Aberto
+                    </option>
+
+                    <option value="Em andamento"
+                        {% if chamado.status == 'Em andamento' %}selected{% endif %}>
+                        Em andamento
+                    </option>
+
+                    <option value="Concluído"
+                        {% if chamado.status == 'Concluído' %}selected{% endif %}>
+                        Concluído
+                    </option>
+                </select>
+
+                <button type="submit">Atualizar</button>
+            </form>
+        </td>
+    </tr>
+
+    {% else %}
+    <tr>
+        <td colspan="7">
+            Nenhum chamado registrado.
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+        </table>
+    </div>
+
+</section>
+        <footer>
+            NEXUS TI © 2026 — Sistema de Gerenciamento de Chamados Técnicos
+        </footer>
+
+    </main>
+
+</body>
+</html>
+<th>Ação</th>

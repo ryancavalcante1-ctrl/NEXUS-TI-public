@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalhes do chamado | NEXUS TI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .observacoes-area { margin-top: 28px; padding-top: 24px; border-top: 1px solid #e8edf5; }
+        .observacao-form { display: grid; gap: 12px; margin: 18px 0 24px; }
+        .observacao-form textarea { width: 100%; min-height: 115px; padding: 14px; border: 1px solid #dce3ee; border-radius: 9px; font: inherit; resize: vertical; box-sizing: border-box; }
+        .observacao-item { background: #f7f9fc; border-left: 3px solid #2864f0; border-radius: 9px; padding: 16px 18px; margin-top: 12px; }
+        .observacao-item p { margin: 10px 0; white-space: pre-wrap; }
+        .observacao-meta { color: #8190a8; font-size: 13px; }
+        .historico-item { background: #f7f9fc; border-left: 3px solid #2864f0; border-radius: 9px; padding: 16px 18px; margin-top: 12px; }
+        .detalhes-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px; margin-top: 24px; }
+        .detalhe-campo strong { display: block; font-size: 13px; margin-bottom: 8px; }
+        .detalhe-campo span { color: #53627a; }
+        .detalhe-descricao { grid-column: span 2; }
+        .detalhes-acoes { display: flex; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid #e8edf5; }
+        .anexos-area { margin-top: 28px; padding-top: 24px; border-top: 1px solid #e8edf5; }
+        .anexo-form { display: grid; gap: 12px; margin: 18px 0 24px; }
+        .anexo-form input[type="file"] { width: 100%; padding: 12px; border: 1px solid #dce3ee; border-radius: 9px; box-sizing: border-box; background: #fff; }
+        .anexo-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; background: #f7f9fc; border-left: 3px solid #2864f0; border-radius: 9px; padding: 14px 18px; margin-top: 10px; }
+        .anexo-item a { color: #2864f0; font-weight: 600; text-decoration: none; }
+        .anexo-item a:hover { text-decoration: underline; }
+        .anexo-meta { color: #8190a8; font-size: 13px; display: block; margin-top: 5px; }
+        .btn-salvar-observacao { justify-self: start; border: 0; border-radius: 8px; padding: 12px 18px; background: #2864f0; color: white; font-weight: 600; cursor: pointer; }
+        @media (max-width: 760px) { .detalhes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .detalhe-descricao { grid-column: span 2; } }
+    
+        .encerramento-area { margin-top: 26px; padding: 22px; border: 1px solid #dce5f2; border-radius: 12px; background: #f8faff; }
+        .encerramento-area h2 { margin: 0 0 8px; }
+        .encerramento-area p { margin: 0 0 14px; color: #71819a; }
+        .encerramento-area textarea { width: 100%; min-height: 125px; resize: vertical; padding: 13px 14px; border: 1px solid #dce3ee; border-radius: 9px; font: inherit; box-sizing: border-box; margin: 10px 0 14px; }
+        .encerramento-area .btn-concluir { background: #176b45; color: #fff; border: 0; border-radius: 8px; padding: 12px 18px; font-weight: 600; cursor: pointer; }
+        .encerramento-confirmado { margin-top: 26px; padding: 20px; border-left: 4px solid #198754; background: #f1fbf5; border-radius: 10px; }
+        .encerramento-confirmado .meta { color: #71819a; font-size: 13px; margin-top: 8px; }
+        .tempo-atendimento { margin-top: 22px; padding: 16px 18px; background: #f7f9fc; border: 1px solid #e5ebf4; border-radius: 10px; }
+        .tempo-atendimento strong { display: block; margin-bottom: 6px; }
+        .btn-reabrir { margin-top: 16px; border: 0; border-radius: 8px; padding: 11px 16px; background: #2864f0; color: #fff; font-weight: 600; cursor: pointer; }
+        .aviso-bloqueio { margin-top: 14px; padding: 13px 15px; background: #f7f9fc; border-radius: 9px; color: #64748b; }
+
+    </style>
+</head>
+<body>
+<main class="main-content">
+    <header class="topbar">
+        <div>
+            <h3>Detalhes do chamado</h3>
+            <p>Consulte as informações e o histórico da solicitação.</p>
+        </div>
+    </header>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensagem in mensagens %}
+            <div class="alerta {{ categoria }}">{{ mensagem }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    <section class="tickets">
+        <h2>Chamado #{{ chamado.id }}</h2>
+        <p>{{ chamado.titulo }}</p>
+
+        <div class="detalhes-grid">
+            <div class="detalhe-campo"><strong>Solicitante</strong><span>{{ chamado.solicitante }}</span></div>
+            <div class="detalhe-campo"><strong>Categoria</strong><span>{{ chamado.categoria }}</span></div>
+            <div class="detalhe-campo"><strong>Prioridade</strong><span>{{ chamado.prioridade }}</span></div>
+            <div class="detalhe-campo"><strong>Status atual</strong><span>{{ chamado.status }}</span></div>
+            <div class="detalhe-campo"><strong>Data de abertura</strong><span>{{ chamado.data_abertura }}</span></div>
+            <div class="detalhe-campo detalhe-descricao"><strong>Descrição completa</strong><span>{{ chamado.descricao }}</span></div>
+        </div>
+
+        <div class="tempo-atendimento">
+            <strong>{% if chamado.status == 'Concluído' %}Tempo total de atendimento{% else %}Tempo decorrido do atendimento{% endif %}</strong>
+            <span>{{ tempo_atendimento }}</span>
+        </div>
+
+        {% if chamado.status == 'Concluído' %}
+            <section class="encerramento-confirmado">
+                <h2>Chamado concluído</h2>
+                <p><strong>Solução aplicada:</strong></p>
+                <p>{{ chamado.solucao }}</p>
+                <div class="meta">
+                    Concluído por {{ chamado.concluido_por or 'Técnico responsável' }}
+                    {% if chamado.data_conclusao %} — {{ chamado.data_conclusao }}{% endif %}
+                </div>
+
+                <form method="POST"
+                      action="{{ url_for('tecnico_atualizar_status', chamado_id=chamado.id) }}"
+                      onsubmit="return confirm('Deseja reabrir este chamado para continuar o atendimento?');">
+                    <input type="hidden" name="status" value="Em andamento">
+                    <input type="hidden" name="observacao" value="Chamado reaberto pelo técnico para continuidade do atendimento.">
+                    <button type="submit" class="btn-reabrir">Reabrir chamado</button>
+                </form>
+            </section>
+        {% else %}
+            <section class="encerramento-area">
+                <h2>Encerramento técnico</h2>
+                <p>Antes de concluir o chamado, descreva obrigatoriamente a solução aplicada e os testes realizados.</p>
+                <form method="POST"
+                      action="{{ url_for('tecnico_atualizar_status', chamado_id=chamado.id) }}">
+                    <input type="hidden" name="status" value="Concluído">
+                    <label for="solucao"><strong>Solução técnica aplicada *</strong></label>
+                    <textarea id="solucao" name="solucao" maxlength="5000"
+                              placeholder="Descreva o diagnóstico, os procedimentos realizados, os testes e a solução aplicada..."
+                              required></textarea>
+                    <button type="submit" class="btn-concluir">Concluir chamado</button>
+                </form>
+            </section>
+        {% endif %}
+
+        <div class="observacoes-area">
+            <h2>Observações técnicas</h2>
+            <p>Registre os procedimentos realizados durante o atendimento.</p>
+
+            {% if chamado.status != 'Concluído' %}
+                <form class="observacao-form" method="POST"
+                      action="{{ url_for('registrar_observacao_tecnica', chamado_id=chamado.id) }}">
+                    <label for="observacao"><strong>Nova observação</strong></label>
+                    <textarea id="observacao" name="observacao" maxlength="3000"
+                              placeholder="Descreva a análise, os testes e os procedimentos realizados..."
+                              required></textarea>
+                    <button class="btn-salvar-observacao" type="submit">Salvar observação</button>
+                </form>
+            {% else %}
+                <div class="aviso-bloqueio">Este chamado está concluído. As observações estão disponíveis apenas para consulta. Reabra o chamado para adicionar novos registros.</div>
+            {% endif %}
+
+            <h3>Registros realizados</h3>
+            {% for item in observacoes %}
+                <article class="observacao-item">
+                    <strong>{{ item.responsavel }}</strong>
+                    <p>{{ item.observacao }}</p>
+                    <span class="observacao-meta">{{ item.data_evento }}</span>
+                </article>
+            {% else %}
+                <p>Nenhuma observação técnica registrada para este chamado.</p>
+            {% endfor %}
+        </div>
+
+        <div class="anexos-area">
+            <h2>Anexos do chamado</h2>
+            <p>Envie fotos, capturas de tela e documentos relacionados ao atendimento.</p>
+
+            {% if chamado.status != 'Concluído' %}
+                <form class="anexo-form" method="POST" enctype="multipart/form-data"
+                      action="{{ url_for('anexar_arquivo_chamado', chamado_id=chamado.id) }}">
+                    <label for="arquivos"><strong>Selecionar arquivos</strong></label>
+                    <input id="arquivos" type="file" name="arquivos" multiple
+                           accept=".png,.jpg,.jpeg,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                           required>
+                    <span class="observacao-meta">Formatos permitidos: imagens, PDF, Word, Excel, TXT e CSV. Até 8 MB por arquivo e 16 MB por envio.</span>
+                    <button class="btn-salvar-observacao" type="submit">Enviar anexos</button>
+                </form>
+            {% else %}
+                <div class="aviso-bloqueio">Este chamado está concluído. Os anexos podem ser consultados e baixados, mas novos arquivos só poderão ser enviados após a reabertura.</div>
+            {% endif %}
+
+            <h3>Arquivos enviados</h3>
+            {% for anexo in anexos %}
+                <article class="anexo-item">
+                    <div>
+                        <strong>{{ anexo.nome_original }}</strong>
+                        <span class="anexo-meta">{{ anexo.responsavel }} — {{ anexo.data_evento }}</span>
+                    </div>
+                    <a href="{{ url_for('baixar_anexo_chamado', anexo_id=anexo.id) }}">Baixar arquivo</a>
+                </article>
+            {% else %}
+                <p>Nenhum arquivo anexado a este chamado.</p>
+            {% endfor %}
+        </div>
+
+        <div class="observacoes-area">
+            <h2>Histórico de atendimento</h2>
+            <p>Acompanhe as movimentações de status registradas neste chamado.</p>
+            {% for item in historico %}
+                <article class="historico-item">
+                    <strong>
+                        {% if item.status_anterior %}
+                            {{ item.status_anterior }} → {{ item.status_novo }}
+                        {% else %}
+                            Chamado criado: {{ item.status_novo }}
+                        {% endif %}
+                    </strong>
+                    {% if item.observacao %}
+                        <p>{{ item.observacao }}</p>
+                    {% endif %}
+                    <span class="observacao-meta">{{ item.data_evento }} — Responsável: {{ item.responsavel }}</span>
+                </article>
+            {% else %}
+                <p>Não há movimentações registradas para este chamado.</p>
+            {% endfor %}
+        </div>
+
+        <div class="detalhes-acoes">
+            <a href="{{ url_for('painel_tecnico') }}" class="btn-cancelar">← Voltar aos chamados</a>
+        </div>
+    </section>
+
+    <footer>NEXUS TI © 2026 — Sistema de Gerenciamento de Chamados Técnicos</footer>
+</main>
+</body>
+</html>

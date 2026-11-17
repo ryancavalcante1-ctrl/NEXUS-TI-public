@@ -1,0 +1,123 @@
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Novo Chamado | NEXUS TI</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+
+        <main class="form-page">
+
+            <a href="{{ url_for('inicio') }}" class="back-link">
+                ← Voltar ao Dashboard
+            </a>
+
+            <section class="form-card">
+
+                <div class="form-heading">
+                    <div class="form-logo">N</div>
+                    <div>
+                        <h1>NEXUS TI</h1>
+                        <p>Central de Suporte Técnico</p>
+                    </div>
+                </div>
+
+                <div class="form-title">
+                    <span>NOVA SOLICITAÇÃO</span>
+                    <h2>Abrir chamado técnico</h2>
+                    <p>Preencha as informações para solicitar suporte.</p>
+                </div>
+
+                {% with mensagens = get_flashed_messages(with_categories=true) %}
+                    {% for categoria, mensagem in mensagens %}
+                        <div class="alerta {{ categoria }}">
+                            {{ mensagem }}
+                        </div>
+                    {% endfor %}
+                {% endwith %}
+
+                <form method="POST" action="{{ url_for('novo_chamado') }}">
+<div class="form-group">
+    <label>Técnico responsável *</label>
+
+    <select name="tecnico_id" required>
+        <option value="">Selecione um técnico</option>
+
+        {% for tecnico in tecnicos %}
+            <option value="{{ tecnico.id }}">
+                {{ tecnico.nome }} - {{ tecnico.especialidade }}
+            </option>
+        {% endfor %}
+    </select>
+</div>
+                    <div class="form-group">
+                        <label>Nome do solicitante *</label>
+                        <input type="text" name="solicitante"
+                            placeholder="Digite seu nome completo"
+                            maxlength="100" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Título do problema *</label>
+                        <input type="text" name="titulo"
+                            placeholder="Ex.: Computador não liga"
+                            maxlength="120" required>
+                    </div>
+
+                    <div class="form-row">
+
+                        <div class="form-group">
+                            <label>Categoria *</label>
+                            <select name="categoria" required>
+                                <option value="">Selecione</option>
+                                <option value="Hardware">Hardware</option>
+                                <option value="Software">Software</option>
+                                <option value="Rede">Rede</option>
+                                <option value="Impressora">Impressora</option>
+                                <option value="Acesso">Acesso</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Prioridade *</label>
+                            <select name="prioridade" required>
+                                <option value="">Selecione</option>
+                                <option value="Baixa">Baixa</option>
+                                <option value="Média">Média</option>
+                                <option value="Alta">Alta</option>
+                            </select>
+                        </div>
+
+                    </div>
+
+                    <div class="form-group">
+                        <label>Descrição detalhada *</label>
+                        <textarea name="descricao"
+                                placeholder="Descreva o problema encontrado..."
+                                maxlength="2000"
+                                rows="6" required></textarea>
+                    </div>
+
+                    <p class="required-info">* Campos obrigatórios</p>
+
+                    <div class="form-actions">
+                        <a href="{{ url_for('inicio') }}" class="btn-cancelar">
+                            Cancelar
+                        </a>
+
+                        <button type="submit" class="btn-enviar">
+                            Registrar chamado →
+                        </button>
+                    </div>
+
+                </form>
+
+            </section>
+
+        </main>
+
+    </body>
+    </html>

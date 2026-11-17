@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS TI | Equipe Técnica</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <main class="main-content">
+
+        <header class="topbar">
+            <div>
+                <h3>Equipe técnica</h3>
+                <p>Gerencie os profissionais de suporte do NEXUS TI.</p>
+            </div>
+            <div class="profile">AD</div><a href="{{ url_for('sair_administrador') }}" class="btn-cancelar">Sair</a>
+        </header>
+        <section class="tickets">
+    <div class="section-header">
+        <div>
+            <h2>Cadastrar técnico</h2>
+            <p>Preencha os dados do novo profissional.</p>
+        </div>
+    </div>
+
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensagem in mensagens %}
+            <div class="alerta {{ categoria }}">
+                {{ mensagem }}
+            </div>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('cadastrar_tecnico') }}">
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nome completo *</label>
+                <input type="text" name="nome"
+                       placeholder="Nome do técnico" required>
+            </div>
+
+            <div class="form-group">
+                <label>E-mail *</label>
+                <input type="email" name="email"
+                       placeholder="tecnico@email.com" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Telefone</label>
+                <input type="text" name="telefone"
+                       placeholder="(11) 99999-9999">
+            </div>
+
+            <div class="form-group">
+                <label>Especialidade *</label>
+                <select name="especialidade" required>
+                    <option value="">Selecione</option>
+                    <option value="Hardware">Hardware</option>
+                    <option value="Software">Software</option>
+                    <option value="Redes">Redes</option>
+                    <option value="Infraestrutura">Infraestrutura</option>
+                    <option value="Suporte geral">Suporte geral</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn-enviar">
+                + Cadastrar técnico
+            </button>
+        </div>
+
+    </form>
+</section>
+
+        <section class="tickets">
+            <div class="section-header">
+                <div>
+                    <h2>Profissionais cadastrados</h2>
+                    <p>Consulte os integrantes da equipe técnica.</p>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nome</th>
+                            <th>E-mail</th>
+                            <th>Telefone</th>
+                            <th>Especialidade</th>
+                            <th>Situação</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for tecnico in tecnicos %}
+                        <tr>
+                            <td>#{{ tecnico.id }}</td>
+                            <td>{{ tecnico.nome }}</td>
+                            <td>{{ tecnico.email }}</td>
+                            <td>{{ tecnico.telefone or '-' }}</td>
+                            <td>{{ tecnico.especialidade }}</td>
+                            <td>
+                                <span class="status">
+                                    {{ tecnico.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6">
+                                Nenhum técnico cadastrado.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer>
+            NEXUS TI © 2026 — Sistema de Gerenciamento de Chamados Técnicos
+        </footer>
+
+    </main>
+
+</body>
+</html>

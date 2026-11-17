@@ -1,0 +1,33 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Banco e anexos locais
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+uploads/
+instance/
+
+# Logs, backups e temporários
+*.log
+*.bak
+*.tmp
+*~
+app copy.py
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

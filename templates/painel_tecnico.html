@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Meus chamados | NEXUS TI</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <main class="main-content">
+
+        <!-- Cabeçalho -->
+        <header class="topbar">
+            <div>
+                <h3>Área do técnico</h3>
+                <p>Bem-vindo(a), {{ nome }}.</p>
+            </div>
+
+            <a href="{{ url_for('sair_tecnico') }}" class="btn-cancelar">
+                Sair
+            </a>
+        </header>
+
+        <!-- Banner principal -->
+        <section class="welcome">
+            <div>
+                <span>PAINEL DO PROFISSIONAL</span>
+                <h1>Meus chamados</h1>
+                <p>Acompanhe e atualize as solicitações atribuídas a você.</p>
+            </div>
+        </section>
+
+        <!-- Mensagens -->
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+            {% for categoria, mensagem in mensagens %}
+                <div class="alerta {{ categoria }}">
+                    {{ mensagem }}
+                </div>
+            {% endfor %}
+        {% endwith %}
+
+        <!-- Indicadores -->
+        <section class="stats">
+
+            <div class="stat-card">
+                <p>Total de chamados</p>
+                <h2>{{ total }}</h2>
+            </div>
+
+            <div class="stat-card">
+                <p>Abertos</p>
+                <h2>{{ abertos }}</h2>
+            </div>
+
+            <div class="stat-card">
+                <p>Em andamento</p>
+                <h2>{{ andamento }}</h2>
+            </div>
+
+            <div class="stat-card">
+                <p>Concluídos</p>
+                <h2>{{ concluidos }}</h2>
+            </div>
+
+        </section>
+
+        <!-- Tabela de chamados -->
+        <section class="tickets">
+
+            <div class="section-header">
+                <div>
+                    <h2>Chamados atribuídos a mim</h2>
+                    <p>Você visualiza somente os chamados direcionados à sua conta.</p>
+                </div>
+            </div>
+
+            <div class="table-container">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Solicitação</th>
+                            <th>Solicitante</th>
+                            <th>Categoria</th>
+                            <th>Prioridade</th>
+                            <th>Status</th>
+                            <th>Ação</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for chamado in chamados %}
+
+                        <tr>
+
+                            <td>#{{ chamado.id }}</td>
+
+                            <td>{{ chamado.titulo }}</td>
+
+                            <td>{{ chamado.solicitante }}</td>
+
+                            <td>{{ chamado.categoria }}</td>
+
+                            <td>{{ chamado.prioridade }}</td>
+
+                            <td>
+                                <span class="status
+                                    {% if chamado.status == 'Aberto' %}open
+                                    {% elif chamado.status == 'Em andamento' %}progress
+                                    {% else %}done{% endif %}">
+                                    {{ chamado.status }}
+                                </span>
+                            </td>
+
+                            <td>
+                                <div class="acoes-chamado">
+
+                                    <!-- Visualizar -->
+                                    <a href="{{ url_for('detalhes_chamado', chamado_id=chamado.id) }}"
+                                       class="btn-visualizar">
+                                        Visualizar
+                                    </a>
+
+                                    <!-- Atualizar status -->
+                                    <form method="POST"
+                                          action="{{ url_for('tecnico_atualizar_status', chamado_id=chamado.id) }}"
+                                          class="status-form">
+
+                                        <select name="status" aria-label="Novo status">
+
+                                            <option value="Aberto"
+                                                {% if chamado.status == 'Aberto' %}selected{% endif %}>
+                                                Aberto
+                                            </option>
+
+                                            <option value="Em andamento"
+                                                {% if chamado.status == 'Em andamento' %}selected{% endif %}>
+                                                Em andamento
+                                            </option>
+
+                                            <option value="Concluído"
+                                                {% if chamado.status == 'Concluído' %}selected{% endif %}>
+                                                Concluído
+                                            </option>
+
+                                        </select>
+
+                                        <button type="submit">
+                                            Atualizar
+                                        </button>
+
+                                    </form>
+
+                                </div>
+                            </td>
+
+                        </tr>
+
+                        {% else %}
+
+                        <tr>
+                            <td colspan="7">
+                                Nenhum chamado atribuído a você no momento.
+                            </td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+        <!-- Rodapé -->
+        <footer>
+            NEXUS TI © 2026 — Sistema de Gerenciamento de Chamados Técnicos
+        </footer>
+
+    </main>
+
+</body>
+</html>
