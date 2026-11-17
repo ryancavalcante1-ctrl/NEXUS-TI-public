@@ -139,13 +139,6 @@ def sair_administrador():
 # CONEXAO COM O BANCO DE DADOS
 # --------------------------------------------------
 
-def conectar_banco():
-    pasta_banco = os.path.dirname(os.path.abspath(DATABASE))
-    os.makedirs(pasta_banco, exist_ok=True)
-    conexao = sqlite3.connect(DATABASE)
-    conexao.row_factory = sqlite3.Row
-    return conexao
-
 
 # --------------------------------------------------
 # CRIACAO E ATUALIZACAO DO BANCO DE DADOS
