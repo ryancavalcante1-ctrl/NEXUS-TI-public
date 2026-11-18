@@ -101,6 +101,16 @@ def administrador_required(func):
     return wrapper
 
 
+def colaborador_required(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        if not session.get("colaborador_id"):
+            flash("Entre com sua conta de colaborador para continuar.", "erro")
+            return redirect(url_for("login_colaborador", next=request.path))
+        return func(*args, **kwargs)
+    return wrapper
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def login_administrador():
     if request.method == "POST":
@@ -162,6 +172,29 @@ def criar_banco():
         ausentes = [nome for nome in ("tecnicos", "chamados", "historico", "observacoes", "anexos") if not tabelas[nome]]
         if ausentes:
             raise RuntimeError("Tabelas ausentes no Supabase: " + ", ".join(ausentes))
+
+        # Cadastro de colaboradores e vínculo dos chamados ao solicitante.
+        conexao.execute("""
+            CREATE TABLE IF NOT EXISTS colaboradores (
+                id SERIAL PRIMARY KEY,
+                nome VARCHAR(180) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                telefone VARCHAR(40),
+                setor VARCHAR(120) NOT NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'Ativo',
+                codigo_ativacao VARCHAR(120),
+                senha_hash TEXT,
+                ativado INTEGER NOT NULL DEFAULT 0,
+                data_cadastro VARCHAR(30) NOT NULL
+            )
+        """)
+        conexao.execute("""
+            ALTER TABLE chamados
+            ADD COLUMN IF NOT EXISTS colaborador_id INTEGER
+            REFERENCES colaboradores(id) ON DELETE SET NULL
+        """)
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_chamados_colaborador_id ON chamados(colaborador_id)")
+        conexao.commit()
     finally:
         conexao.close()
 
@@ -204,6 +237,59 @@ def calcular_tempo_atendimento(data_abertura, data_conclusao=None):
         return " e ".join(partes)
     except (TypeError, ValueError):
         return "Não disponível"
+
+
+# --------------------------------------------------
+# CADASTRO E GESTAO DE COLABORADORES (ADMINISTRADOR)
+# --------------------------------------------------
+
+@app.route("/admin/colaboradores", methods=["GET", "POST"])
+@administrador_required
+def gerenciar_colaboradores():
+    if request.method == "POST":
+        nome = request.form.get("nome", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        telefone = request.form.get("telefone", "").strip()
+        setor = request.form.get("setor", "").strip()
+        if not all([nome, email, setor]):
+            flash("Informe nome, e-mail e setor do colaborador.", "erro")
+            return redirect(url_for("gerenciar_colaboradores"))
+        codigo = secrets.token_urlsafe(9)
+        conexao = conectar_banco()
+        try:
+            conexao.execute("""
+                INSERT INTO colaboradores
+                (nome, email, telefone, setor, status, codigo_ativacao, ativado, data_cadastro)
+                VALUES (?, ?, ?, ?, 'Ativo', ?, 0, ?)
+            """, (nome, email, telefone, setor, codigo, datetime.now().strftime("%d/%m/%Y %H:%M")))
+            conexao.commit()
+            flash(f"Colaborador cadastrado. Código de primeiro acesso: {codigo}", "sucesso")
+        except psycopg2.IntegrityError:
+            conexao.rollback()
+            flash("Este e-mail já está cadastrado.", "erro")
+        finally:
+            conexao.close()
+        return redirect(url_for("gerenciar_colaboradores"))
+
+    conexao = conectar_banco()
+    colaboradores = conexao.execute("SELECT id, nome, email, telefone, setor, status, ativado, data_cadastro FROM colaboradores ORDER BY nome").fetchall()
+    conexao.close()
+    return render_template("colaboradores.html", colaboradores=colaboradores)
+
+
+@app.route("/admin/colaborador/<int:colaborador_id>/situacao", methods=["POST"])
+@administrador_required
+def alterar_situacao_colaborador(colaborador_id):
+    situacao = request.form.get("status")
+    if situacao not in ("Ativo", "Inativo"):
+        flash("Situação inválida.", "erro")
+        return redirect(url_for("gerenciar_colaboradores"))
+    conexao = conectar_banco()
+    conexao.execute("UPDATE colaboradores SET status = ? WHERE id = ?", (situacao, colaborador_id))
+    conexao.commit()
+    conexao.close()
+    flash("Situação do colaborador atualizada.", "sucesso")
+    return redirect(url_for("gerenciar_colaboradores"))
 
 
 # --------------------------------------------------
@@ -416,6 +502,143 @@ def cadastrar_tecnico():
         conexao.close()
 
     return redirect(url_for("equipe_tecnica"))
+
+
+# --------------------------------------------------
+# ACESSO DO COLABORADOR
+# --------------------------------------------------
+
+@app.route("/login-colaborador", methods=["GET", "POST"])
+def login_colaborador():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        senha = request.form.get("senha", "")
+        conexao = conectar_banco()
+        colaborador = conexao.execute("""
+            SELECT id, nome, email, setor, senha_hash, status, ativado
+            FROM colaboradores WHERE email = ?
+        """, (email,)).fetchone()
+        conexao.close()
+        if (colaborador and colaborador["status"] == "Ativo" and colaborador["ativado"] == 1
+                and colaborador["senha_hash"] and check_password_hash(colaborador["senha_hash"], senha)):
+            session.clear()
+            session["colaborador_id"] = colaborador["id"]
+            session["colaborador_nome"] = colaborador["nome"]
+            session["colaborador_setor"] = colaborador["setor"]
+            destino = request.args.get("next", "")
+            if not destino.startswith("/") or destino.startswith("//"):
+                destino = url_for("painel_colaborador")
+            return redirect(destino)
+        flash("E-mail ou senha incorretos, ou conta ainda não ativada.", "erro")
+    return render_template("login_colaborador.html")
+
+
+@app.route("/colaborador/primeiro-acesso", methods=["GET", "POST"])
+def primeiro_acesso_colaborador():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        codigo = request.form.get("codigo", "").strip()
+        senha = request.form.get("senha", "")
+        confirmar = request.form.get("confirmar_senha", "")
+        if not all([email, codigo, senha, confirmar]) or len(senha) < 8 or senha != confirmar:
+            flash("Confira os dados. A senha deve ter ao menos 8 caracteres e as duas senhas devem coincidir.", "erro")
+            return redirect(url_for("primeiro_acesso_colaborador"))
+        conexao = conectar_banco()
+        try:
+            colaborador = conexao.execute("""
+                SELECT id FROM colaboradores
+                WHERE email = ? AND codigo_ativacao = ? AND ativado = 0 AND status = 'Ativo'
+            """, (email, codigo)).fetchone()
+            if not colaborador:
+                flash("E-mail ou código de ativação inválido.", "erro")
+                return redirect(url_for("primeiro_acesso_colaborador"))
+            conexao.execute("""
+                UPDATE colaboradores SET senha_hash = ?, ativado = 1, codigo_ativacao = NULL
+                WHERE id = ?
+            """, (generate_password_hash(senha), colaborador["id"]))
+            conexao.commit()
+        finally:
+            conexao.close()
+        flash("Conta ativada! Agora você já pode entrar.", "sucesso")
+        return redirect(url_for("login_colaborador"))
+    return render_template("primeiro_acesso_colaborador.html")
+
+
+@app.route("/painel-colaborador")
+@colaborador_required
+def painel_colaborador():
+    conexao = conectar_banco()
+    chamados = conexao.execute("""
+        SELECT c.id, c.titulo, c.categoria, c.prioridade, c.status, c.data_abertura,
+               t.nome AS tecnico_nome
+        FROM chamados c LEFT JOIN tecnicos t ON t.id = c.tecnico_id
+        WHERE c.colaborador_id = ? ORDER BY c.id DESC
+    """, (session["colaborador_id"],)).fetchall()
+    conexao.close()
+    return render_template("painel_colaborador.html", chamados=chamados,
+                           nome=session.get("colaborador_nome", "Colaborador"),
+                           setor=session.get("colaborador_setor", ""))
+
+
+@app.route("/colaborador/novo-chamado", methods=["GET", "POST"])
+@colaborador_required
+def colaborador_novo_chamado():
+    categorias = ["Hardware", "Software", "Rede", "Impressora", "Acesso", "Outros"]
+    prioridades = ["Baixa", "Média", "Alta"]
+    if request.method == "POST":
+        titulo = request.form.get("titulo", "").strip()
+        categoria = request.form.get("categoria", "").strip()
+        prioridade = request.form.get("prioridade", "").strip()
+        descricao = request.form.get("descricao", "").strip()
+        if not titulo or not descricao or categoria not in categorias or prioridade not in prioridades:
+            flash("Preencha todos os campos e selecione categoria e prioridade válidas.", "erro")
+            return redirect(url_for("colaborador_novo_chamado"))
+        especialidades = {
+            "Hardware": ["Hardware", "Suporte geral"],
+            "Software": ["Software", "Suporte geral"],
+            "Rede": ["Redes", "Infraestrutura", "Suporte geral"],
+            "Impressora": ["Infraestrutura", "Hardware", "Suporte geral"],
+            "Acesso": ["Software", "Suporte geral"],
+            "Outros": ["Suporte geral", "Infraestrutura"]
+        }
+        conexao = conectar_banco()
+        try:
+            tecnico = None
+            for especialidade in especialidades[categoria]:
+                tecnico = conexao.execute("""
+                    SELECT id FROM tecnicos WHERE status = 'Ativo' AND especialidade = ?
+                    ORDER BY nome LIMIT 1
+                """, (especialidade,)).fetchone()
+                if tecnico:
+                    break
+            if not tecnico:
+                tecnico = conexao.execute("SELECT id FROM tecnicos WHERE status = 'Ativo' ORDER BY nome LIMIT 1").fetchone()
+            if not tecnico:
+                flash("Ainda não há técnicos ativos para receber chamados. Procure o administrador.", "erro")
+                return redirect(url_for("colaborador_novo_chamado"))
+            chamado = conexao.execute("""
+                INSERT INTO chamados
+                (solicitante, titulo, categoria, prioridade, descricao, status,
+                 data_abertura, tecnico_id, colaborador_id)
+                VALUES (?, ?, ?, ?, ?, 'Aberto', ?, ?, ?) RETURNING id
+            """, (session.get("colaborador_nome", "Colaborador"), titulo, categoria,
+                  prioridade, descricao, datetime.now().strftime("%d/%m/%Y %H:%M"),
+                  tecnico["id"], session["colaborador_id"])).fetchone()
+            registrar_historico(conexao, chamado["id"], None, "Aberto", "Sistema",
+                                "Chamado aberto pelo colaborador e encaminhado automaticamente.")
+            conexao.commit()
+        finally:
+            conexao.close()
+        flash("Chamado aberto e encaminhado à equipe responsável.", "sucesso")
+        return redirect(url_for("painel_colaborador"))
+    return render_template("colaborador_novo_chamado.html")
+
+
+@app.route("/colaborador/sair")
+def sair_colaborador():
+    session.clear()
+    flash("Você saiu da sua conta.", "sucesso")
+    return redirect(url_for("login_colaborador"))
 
 
 # --------------------------------------------------
