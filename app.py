@@ -513,6 +513,43 @@ def cadastrar_tecnico():
     return redirect(url_for("equipe_tecnica"))
 
 
+@app.route("/redefinir-senha-tecnico/<int:tecnico_id>", methods=["POST"])
+@administrador_required
+def redefinir_senha_tecnico(tecnico_id):
+    """Gera uma nova senha temporária sem excluir ou recriar o técnico."""
+    conexao = conectar_banco()
+    try:
+        tecnico = conexao.execute(
+            "SELECT id, nome, email FROM tecnicos WHERE id = ?",
+            (tecnico_id,)
+        ).fetchone()
+
+        if not tecnico:
+            flash("Técnico não encontrado.", "erro")
+            return redirect(url_for("equipe_tecnica"))
+
+        senha_temporaria = secrets.token_urlsafe(12)
+        senha_hash = generate_password_hash(senha_temporaria)
+        conexao.execute(
+            "UPDATE tecnicos SET senha_hash = ?, ativado = 1, codigo_ativacao = NULL WHERE id = ?",
+            (senha_hash, tecnico_id)
+        )
+        conexao.commit()
+        flash(
+            f"Nova senha temporária gerada para {tecnico['nome']} ({tecnico['email']}): "
+            f"{senha_temporaria}. Anote e entregue ao técnico por um canal seguro. A senha anterior deixou de funcionar.",
+            "sucesso"
+        )
+    except Exception:
+        conexao.rollback()
+        app.logger.exception("Erro ao redefinir senha do técnico %s", tecnico_id)
+        flash("Não foi possível gerar uma nova senha. Tente novamente.", "erro")
+    finally:
+        conexao.close()
+
+    return redirect(url_for("equipe_tecnica"))
+
+
 # --------------------------------------------------
 # ACESSO DO COLABORADOR
 # --------------------------------------------------

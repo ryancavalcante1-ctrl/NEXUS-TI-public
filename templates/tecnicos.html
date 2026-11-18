@@ -96,6 +96,7 @@
                             <th>Telefone</th>
                             <th>Especialidade</th>
                             <th>Situação</th>
+                            <th>Ações</th>
                         </tr>
                     </thead>
 
@@ -112,10 +113,16 @@
                                     {{ tecnico.status }}
                                 </span>
                             </td>
+                            <td>
+                                <form method="POST" action="{{ url_for('redefinir_senha_tecnico', tecnico_id=tecnico.id) }}"
+                                      onsubmit="return confirm('Gerar uma nova senha para este técnico? A senha atual deixará de funcionar.');">
+                                    <button type="submit" class="btn-cancelar">Gerar nova senha</button>
+                                </form>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 Nenhum técnico cadastrado.
                             </td>
                         </tr>
