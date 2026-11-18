@@ -5,6 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login do Técnico | NEXUS TI</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .back-access {
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            margin: 24px 0 26px;
+            padding: 11px 15px;
+            border: 1px solid #d7e3ff;
+            border-radius: 10px;
+            background: #f5f8ff;
+            color: #245be8;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background .18s, border-color .18s, transform .18s;
+        }
+        .back-access:hover {
+            background: #edf3ff;
+            border-color: #9bb8ff;
+            transform: translateX(-2px);
+        }
+        .back-access span { font-size: 20px; line-height: 1; }
+    </style>
 </head>
 <body>
     <main class="form-page">
@@ -16,6 +39,10 @@
                     <p>Central de Suporte Técnico</p>
                 </div>
             </div>
+
+            <a class="back-access" href="{{ url_for('login_administrador') }}">
+                <span aria-hidden="true">←</span> Voltar à seleção de acesso
+            </a>
 
             <div class="form-title">
                 <span>ACESSO DO PROFISSIONAL</span>

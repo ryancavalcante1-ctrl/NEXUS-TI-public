@@ -13,6 +13,9 @@
         .collab-login .form-group { margin-bottom: 16px; }
         .collab-login input { width: 100%; box-sizing: border-box; }
         .collab-login form button { width: 100%; border: 0; cursor: pointer; }
+        .back-access { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 24px; padding: 10px 14px; border: 1px solid #d7e3ff; border-radius: 10px; background: #f5f8ff; color: #245be8; font-size: 13px; font-weight: 600; text-decoration: none; transition: background .18s, border-color .18s, transform .18s; }
+        .back-access:hover { background: #edf3ff; border-color: #9bb8ff; transform: translateX(-2px); }
+        .back-access span { font-size: 19px; line-height: 1; }
         .access-section { margin-top: 26px; padding-top: 22px; border-top: 1px solid #edf1f7; }
         .access-title { margin: 0 0 12px; color: #253653; font-size: 14px; font-weight: 700; }
         .access-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -33,6 +36,9 @@
             <div class="form-logo">N</div>
             <div><h1>NEXUS TI</h1><p>Portal do colaborador</p></div>
         </div>
+        <a class="back-access" href="{{ url_for('login_administrador') }}">
+            <span aria-hidden="true">←</span> Voltar à seleção de acesso
+        </a>
         <div class="form-title">
             <span>ABERTURA DE CHAMADOS</span>
             <h2>Entrar na sua conta</h2>
