@@ -9,3 +9,5 @@ NEXUS TI - ATUALIZACAO DO PORTAL DE COLABORADORES
 7. Se não houver técnico ativo, o chamado não é criado e o colaborador recebe um aviso.
 
 IMPORTANTE: Não publique DATABASE_URL, chaves do Supabase, SECRET_KEY nem senhas no GitHub.
+
+8. Técnicos: o administrador cadastra o profissional; o sistema gera uma senha temporária, salva apenas o hash e libera o acesso imediatamente. A senha aparece uma única vez na mensagem de sucesso para ser entregue ao técnico por canal seguro. Não há ativação de conta para técnicos.

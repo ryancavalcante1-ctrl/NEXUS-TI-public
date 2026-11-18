@@ -20,7 +20,7 @@
             <div class="form-title">
                 <span>ACESSO DO PROFISSIONAL</span>
                 <h2>Entrar na sua conta</h2>
-                <p>Use o e-mail cadastrado e a senha que você criou.</p>
+                <p>Use o e-mail cadastrado e a senha temporária fornecida pelo administrador.</p>
             </div>
 
             {% with mensagens = get_flashed_messages(with_categories=true) %}
@@ -47,10 +47,6 @@
                 </div>
             </form>
 
-            <p class="required-info">
-                Primeiro acesso?
-                <a href="{{ url_for('primeiro_acesso') }}">Ative sua conta aqui.</a>
-            </p>
         </section>
     </main>
 </body>

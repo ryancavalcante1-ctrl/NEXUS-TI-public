@@ -486,17 +486,26 @@ def cadastrar_tecnico():
         return redirect(url_for("equipe_tecnica"))
 
     conexao = conectar_banco()
-    codigo = secrets.token_urlsafe(8)
+    # A senha temporária é exibida uma única vez ao administrador após o cadastro.
+    # O hash é salvo no banco; a senha em texto puro não é armazenada.
+    senha_temporaria = secrets.token_urlsafe(12)
+    senha_hash = generate_password_hash(senha_temporaria)
 
     try:
         conexao.execute("""
             INSERT INTO tecnicos
-            (nome, email, telefone, especialidade, codigo_ativacao)
-            VALUES (?, ?, ?, ?, ?)
-        """, (nome, email, telefone, especialidade, codigo))
+            (nome, email, telefone, especialidade, senha_hash, ativado,
+             codigo_ativacao, status)
+            VALUES (?, ?, ?, ?, ?, 1, NULL, 'Ativo')
+        """, (nome, email, telefone, especialidade, senha_hash))
         conexao.commit()
-        flash(f"Técnico cadastrado! Código de ativação: {codigo}", "sucesso")
+        flash(
+            f"Técnico cadastrado e liberado para acesso. E-mail: {email} | "
+            f"Senha temporária: {senha_temporaria}. Anote e entregue ao técnico por um canal seguro.",
+            "sucesso"
+        )
     except psycopg2.IntegrityError:
+        conexao.rollback()
         flash("Este e-mail já está cadastrado.", "erro")
     finally:
         conexao.close()
@@ -529,7 +538,7 @@ def login_colaborador():
             if not destino.startswith("/") or destino.startswith("//"):
                 destino = url_for("painel_colaborador")
             return redirect(destino)
-        flash("E-mail ou senha incorretos, ou conta ainda não ativada.", "erro")
+        flash("E-mail ou senha incorretos. Confira os dados fornecidos pelo administrador.", "erro")
     return render_template("login_colaborador.html")
 
 
@@ -647,52 +656,8 @@ def sair_colaborador():
 
 @app.route("/primeiro-acesso", methods=["GET", "POST"])
 def primeiro_acesso():
-    if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
-        codigo = request.form.get("codigo", "").strip()
-        senha = request.form.get("senha", "")
-        confirmar_senha = request.form.get("confirmar_senha", "")
-
-        if not all([email, codigo, senha, confirmar_senha]):
-            flash("Preencha todos os campos.", "erro")
-            return redirect(url_for("primeiro_acesso"))
-
-        if len(senha) < 8:
-            flash("A senha deve ter pelo menos 8 caracteres.", "erro")
-            return redirect(url_for("primeiro_acesso"))
-
-        if senha != confirmar_senha:
-            flash("As senhas não coincidem.", "erro")
-            return redirect(url_for("primeiro_acesso"))
-
-        conexao = conectar_banco()
-        try:
-            tecnico = conexao.execute("""
-                SELECT id FROM tecnicos
-                WHERE email = ?
-                  AND codigo_ativacao = ?
-                  AND ativado = 0
-                  AND status = 'Ativo'
-            """, (email, codigo)).fetchone()
-
-            if not tecnico:
-                flash("E-mail ou código inválido.", "erro")
-                return redirect(url_for("primeiro_acesso"))
-
-            senha_hash = generate_password_hash(senha)
-            conexao.execute("""
-                UPDATE tecnicos
-                SET senha_hash = ?, ativado = 1, codigo_ativacao = NULL
-                WHERE id = ?
-            """, (senha_hash, tecnico["id"]))
-            conexao.commit()
-
-            flash("Conta ativada! Sua senha foi cadastrada com sucesso.", "sucesso")
-            return render_template("primeiro_acesso.html", ativado=True)
-        finally:
-            conexao.close()
-
-    return render_template("primeiro_acesso.html", ativado=False)
+    flash("A ativação não é mais necessária. O administrador fornece uma senha temporária no cadastro.", "info")
+    return redirect(url_for("login_tecnico"))
 
 
 # --------------------------------------------------
@@ -720,7 +685,6 @@ def login_tecnico():
         if (
             tecnico
             and tecnico["status"] == "Ativo"
-            and tecnico["ativado"] == 1
             and tecnico["senha_hash"]
             and check_password_hash(tecnico["senha_hash"], senha)
         ):
@@ -729,7 +693,7 @@ def login_tecnico():
             session["tecnico_nome"] = tecnico["nome"]
             return redirect(url_for("painel_tecnico"))
 
-        flash("E-mail ou senha incorretos, ou conta ainda não ativada.", "erro")
+        flash("E-mail ou senha incorretos. Confira os dados fornecidos pelo administrador.", "erro")
         return redirect(url_for("login_tecnico"))
 
     return render_template("login_tecnico.html")
