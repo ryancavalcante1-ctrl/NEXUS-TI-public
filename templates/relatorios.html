@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEXUS TI | Relatórios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .report-wrap{max-width:1400px;margin:0 auto}
+        .report-heading{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;margin:26px 0}
+        .report-heading h1{margin:0 0 7px;color:#172b4d;font-size:28px}
+        .report-heading p{margin:0;color:#718096}
+        .report-actions{display:flex;gap:10px;flex-wrap:wrap}
+        .report-btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 16px;border-radius:9px;text-decoration:none;font-weight:700;border:0;cursor:pointer}
+        .report-primary{background:#2864e8;color:#fff}
+        .report-light{background:#edf2ff;color:#2456c7}
+        .filter-card,.report-card{background:#fff;border:1px solid #e8edf5;border-radius:14px;padding:22px;box-shadow:0 5px 20px rgba(25,45,85,.045)}
+        .filter-card{margin-bottom:22px}
+        .filter-form{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+        .filter-form label{display:block;font-size:13px;font-weight:700;color:#34445e;margin-bottom:7px}
+        .filter-form input{min-width:190px;padding:11px 12px;border:1px solid #dce4ef;border-radius:8px;color:#26364f}
+        .report-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}
+        .kpi{background:#fff;border:1px solid #e8edf5;border-radius:14px;padding:20px;box-shadow:0 5px 20px rgba(25,45,85,.045)}
+        .kpi span{display:block;color:#718096;font-size:13px;margin-bottom:9px}
+        .kpi strong{font-size:29px;color:#172b4d}
+        .kpi small{display:block;color:#8492a6;margin-top:5px}
+        .report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:22px}
+        .report-card h2{font-size:17px;color:#203451;margin:0 0 18px}
+        .bar-row{margin:13px 0}
+        .bar-meta{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#4b5d78;margin-bottom:7px}
+        .bar-track{height:9px;background:#edf1f7;border-radius:20px;overflow:hidden}
+        .bar-fill{height:100%;background:linear-gradient(90deg,#2864e8,#6d91f4);border-radius:20px;min-width:2px}
+        .empty{color:#8492a6;font-size:14px;padding:8px 0}
+        .report-table{width:100%;border-collapse:collapse;font-size:13px}
+        .report-table th,.report-table td{text-align:left;padding:12px 10px;border-bottom:1px solid #edf1f6}
+        .report-table th{color:#718096;font-weight:700;background:#f8faff}
+        .table-scroll{overflow-x:auto}
+        .status-pill{display:inline-block;padding:5px 9px;border-radius:20px;background:#edf2ff;color:#3159b7;font-weight:700;white-space:nowrap}
+        .status-open{background:#fff2df;color:#a35c00}.status-done{background:#e5f8ed;color:#167344}
+        .back-link{color:#52647e;text-decoration:none;font-weight:600}
+        @media(max-width:900px){.report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        @media(max-width:600px){.report-grid,.report-kpis{grid-template-columns:1fr}.filter-form input{width:100%;min-width:0}.filter-form>div{width:100%}}
+    </style>
+</head>
+<body>
+<aside class="sidebar">
+    <div class="logo"><div class="logo-icon">N</div><div><h2>NEXUS <span>TI</span></h2><small>SUPORTE TÉCNICO</small></div></div>
+    <p class="menu-title">MENU PRINCIPAL</p>
+    <nav>
+        <a href="{{ url_for('inicio') }}">▦ &nbsp; Dashboard</a>
+        <a href="{{ url_for('inicio') }}#chamados">▤ &nbsp; Chamados</a>
+        <a href="{{ url_for('equipe_tecnica') }}">♙ &nbsp; Equipe técnica</a>
+        <a href="{{ url_for('gerenciar_colaboradores') }}">👥 &nbsp; Colaboradores</a>
+        <a href="{{ url_for('relatorios') }}" class="active">▥ &nbsp; Relatórios</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="user-avatar">AD</div><div><strong>Administrador</strong><small>Gestão de TI</small></div></div>
+</aside>
+<main class="main-content">
+    <header class="topbar">
+        <div><h3>Relatórios gerenciais</h3><p>Indicadores e desempenho da central de suporte.</p></div>
+        <div style="display:flex;align-items:center;gap:12px"><div class="profile">AD</div><a href="{{ url_for('sair_administrador') }}" class="btn-cancelar">Sair</a></div>
+    </header>
+    <div class="report-wrap">
+        <div class="report-heading">
+            <div><a class="back-link" href="{{ url_for('inicio') }}">← Voltar ao dashboard</a><h1>Relatórios do NEXUS TI</h1><p>Visão consolidada dos chamados registrados no sistema.</p></div>
+            <div class="report-actions"><a class="report-btn report-light" href="{{ url_for('relatorios', inicio=data_inicio, fim=data_fim, exportar='csv') }}">↓ Exportar Excel (CSV)</a></div>
+        </div>
+
+        <section class="filter-card">
+            <form class="filter-form" method="GET" action="{{ url_for('relatorios') }}">
+                <div><label for="inicio">Data inicial</label><input id="inicio" name="inicio" type="date" value="{{ data_inicio }}"></div>
+                <div><label for="fim">Data final</label><input id="fim" name="fim" type="date" value="{{ data_fim }}"></div>
+                <button class="report-btn report-primary" type="submit">Aplicar período</button>
+                <a class="report-btn report-light" href="{{ url_for('relatorios') }}">Limpar filtros</a>
+            </form>
+        </section>
+
+        <section class="report-kpis">
+            <div class="kpi"><span>Total de chamados</span><strong>{{ total }}</strong><small>No período selecionado</small></div>
+            <div class="kpi"><span>Abertos</span><strong>{{ por_status['Aberto'] }}</strong><small>Aguardando atendimento</small></div>
+            <div class="kpi"><span>Em andamento</span><strong>{{ por_status['Em andamento'] }}</strong><small>Em atendimento técnico</small></div>
+            <div class="kpi"><span>Concluídos</span><strong>{{ por_status['Concluído'] }}</strong><small>Finalizados no período</small></div>
+        </section>
+
+        <section class="report-grid">
+            <div class="report-card"><h2>Chamados por categoria</h2>
+                {% if por_categoria %}{% for item in por_categoria %}
+                <div class="bar-row"><div class="bar-meta"><span>{{ item.nome }}</span><strong>{{ item.quantidade }}</strong></div><div class="bar-track"><div class="bar-fill" style="width:{{ (item.quantidade / total * 100) if total else 0 }}%"></div></div></div>
+                {% endfor %}{% else %}<p class="empty">Nenhum chamado encontrado no período.</p>{% endif %}
+            </div>
+            <div class="report-card"><h2>Chamados por técnico</h2>
+                {% if por_tecnico %}{% for item in por_tecnico %}
+                <div class="bar-row"><div class="bar-meta"><span>{{ item.nome }}</span><strong>{{ item.quantidade }}</strong></div><div class="bar-track"><div class="bar-fill" style="width:{{ (item.quantidade / total * 100) if total else 0 }}%"></div></div></div>
+                {% endfor %}{% else %}<p class="empty">Nenhum chamado encontrado no período.</p>{% endif %}
+            </div>
+            <div class="report-card"><h2>Chamados por setor solicitante</h2>
+                {% if por_setor %}{% for item in por_setor %}
+                <div class="bar-row"><div class="bar-meta"><span>{{ item.nome }}</span><strong>{{ item.quantidade }}</strong></div><div class="bar-track"><div class="bar-fill" style="width:{{ (item.quantidade / total * 100) if total else 0 }}%"></div></div></div>
+                {% endfor %}{% else %}<p class="empty">Nenhum chamado encontrado no período.</p>{% endif %}
+            </div>
+            <div class="report-card"><h2>Tempo médio de atendimento</h2><div class="kpi" style="padding:0;border:0;box-shadow:none"><strong>{{ media_legivel }}</strong><small>Calculado apenas para chamados concluídos com datas válidas ({{ concluidos_com_tempo }} registro(s)).</small></div></div>
+        </section>
+
+        <section class="report-card">
+            <h2>Chamados incluídos no relatório</h2>
+            <div class="table-scroll"><table class="report-table"><thead><tr><th>ID</th><th>Solicitante</th><th>Setor</th><th>Solicitação</th><th>Categoria</th><th>Técnico</th><th>Abertura</th><th>Status</th></tr></thead><tbody>
+            {% for chamado in chamados %}
+                <tr><td>#{{ chamado.id }}</td><td>{{ chamado.solicitante }}</td><td>{{ chamado.setor }}</td><td>{{ chamado.titulo }}</td><td>{{ chamado.categoria }}</td><td>{{ chamado.tecnico_nome or 'Não atribuído' }}</td><td>{{ chamado.data_abertura }}</td><td><span class="status-pill {% if chamado.status == 'Aberto' %}status-open{% elif chamado.status == 'Concluído' %}status-done{% endif %}">{{ chamado.status }}</span></td></tr>
+            {% else %}<tr><td colspan="8" class="empty">Nenhum chamado encontrado para os filtros selecionados.</td></tr>{% endfor %}
+            </tbody></table></div>
+        </section>
+    </div>
+    <footer>NEXUS TI © 2026 — Sistema de Gerenciamento de Chamados Técnicos</footer>
+</main>
+</body>
+</html>

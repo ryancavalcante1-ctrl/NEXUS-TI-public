@@ -327,6 +327,148 @@ def inicio():
 
 
 # --------------------------------------------------
+# RELATORIOS ADMINISTRATIVOS
+# --------------------------------------------------
+
+def _data_relatorio(valor):
+    """Converte as datas textuais já usadas pelo NEXUS TI para datetime."""
+    if not valor:
+        return None
+    for formato in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M"):
+        try:
+            return datetime.strptime(str(valor), formato)
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _dados_relatorios(data_inicio="", data_fim=""):
+    conexao = conectar_banco()
+    try:
+        registros = conexao.execute("""
+            SELECT
+                c.id, c.solicitante, c.titulo, c.categoria, c.prioridade,
+                c.status, c.data_abertura, c.data_conclusao,
+                t.nome AS tecnico_nome,
+                COALESCE(co.setor, 'Não informado') AS setor
+            FROM chamados c
+            LEFT JOIN tecnicos t ON t.id = c.tecnico_id
+            LEFT JOIN colaboradores co ON co.id = c.colaborador_id
+            ORDER BY c.id DESC
+        """).fetchall()
+    finally:
+        conexao.close()
+
+    inicio = datetime.strptime(data_inicio, "%Y-%m-%d").date() if data_inicio else None
+    fim = datetime.strptime(data_fim, "%Y-%m-%d").date() if data_fim else None
+
+    chamados_filtrados = []
+    for registro in registros:
+        chamado = dict(registro)
+        abertura = _data_relatorio(chamado.get("data_abertura"))
+        if inicio and (not abertura or abertura.date() < inicio):
+            continue
+        if fim and (not abertura or abertura.date() > fim):
+            continue
+        chamado["_abertura_dt"] = abertura
+        chamado["_conclusao_dt"] = _data_relatorio(chamado.get("data_conclusao"))
+        chamados_filtrados.append(chamado)
+
+    total = len(chamados_filtrados)
+    status_validos = ("Aberto", "Em andamento", "Concluído")
+    por_status = {
+        status: sum(1 for c in chamados_filtrados if c.get("status") == status)
+        for status in status_validos
+    }
+
+    def agrupar(campo):
+        resultado = {}
+        for chamado in chamados_filtrados:
+            chave = chamado.get(campo) or "Não informado"
+            resultado[chave] = resultado.get(chave, 0) + 1
+        return sorted(
+            [{"nome": nome, "quantidade": quantidade} for nome, quantidade in resultado.items()],
+            key=lambda item: (-item["quantidade"], item["nome"].lower())
+        )
+
+    duracoes = []
+    for chamado in chamados_filtrados:
+        abertura = chamado.get("_abertura_dt")
+        conclusao = chamado.get("_conclusao_dt")
+        if abertura and conclusao and conclusao >= abertura:
+            duracoes.append((conclusao - abertura).total_seconds() / 60)
+
+    media_minutos = round(sum(duracoes) / len(duracoes)) if duracoes else None
+    if media_minutos is None:
+        media_legivel = "Sem dados"
+    else:
+        dias, resto = divmod(media_minutos, 1440)
+        horas, minutos = divmod(resto, 60)
+        partes = []
+        if dias:
+            partes.append(f"{dias} dia(s)")
+        if horas:
+            partes.append(f"{horas} hora(s)")
+        if minutos or not partes:
+            partes.append(f"{minutos} min")
+        media_legivel = " e ".join(partes)
+
+    return {
+        "chamados": chamados_filtrados,
+        "total": total,
+        "por_status": por_status,
+        "por_categoria": agrupar("categoria"),
+        "por_tecnico": agrupar("tecnico_nome"),
+        "por_setor": agrupar("setor"),
+        "media_legivel": media_legivel,
+        "concluidos_com_tempo": len(duracoes),
+    }
+
+
+@app.route("/admin/relatorios")
+@administrador_required
+def relatorios():
+    data_inicio = request.args.get("inicio", "").strip()
+    data_fim = request.args.get("fim", "").strip()
+    try:
+        if data_inicio:
+            datetime.strptime(data_inicio, "%Y-%m-%d")
+        if data_fim:
+            datetime.strptime(data_fim, "%Y-%m-%d")
+        if data_inicio and data_fim and data_inicio > data_fim:
+            raise ValueError("A data inicial não pode ser posterior à data final.")
+        dados = _dados_relatorios(data_inicio, data_fim)
+    except ValueError as erro:
+        flash(str(erro) or "Período inválido.", "erro")
+        return redirect(url_for("relatorios"))
+
+    if request.args.get("exportar") == "csv":
+        import csv
+        saida = BytesIO()
+        # UTF-8 com BOM para abrir corretamente no Excel em português.
+        conteudo = ["\ufeff"]
+        from io import StringIO
+        texto = StringIO()
+        escritor = csv.writer(texto, delimiter=";")
+        escritor.writerow(["ID", "Solicitante", "Setor", "Título", "Categoria",
+                           "Prioridade", "Status", "Técnico", "Abertura", "Conclusão"])
+        for chamado in dados["chamados"]:
+            escritor.writerow([
+                chamado.get("id"), chamado.get("solicitante"), chamado.get("setor"),
+                chamado.get("titulo"), chamado.get("categoria"), chamado.get("prioridade"),
+                chamado.get("status"), chamado.get("tecnico_nome") or "Não atribuído",
+                chamado.get("data_abertura") or "", chamado.get("data_conclusao") or ""
+            ])
+        saida.write(("\ufeff" + texto.getvalue()).encode("utf-8"))
+        saida.seek(0)
+        return send_file(saida, mimetype="text/csv; charset=utf-8",
+                         as_attachment=True, download_name="relatorio_nexus_ti.csv")
+
+    return render_template("relatorios.html", **dados,
+                           data_inicio=data_inicio, data_fim=data_fim)
+
+
+# --------------------------------------------------
 # ABERTURA DE CHAMADOS
 # --------------------------------------------------
 
